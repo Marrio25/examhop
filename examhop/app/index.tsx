@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Defs, RadialGradient as SvgRadialGradient, Rect, Stop } from 'react-native-svg';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function AuthScreen() {
+  const router = useRouter();
+  const { t } = useLanguage();
   const [isSignup, setIsSignup] = useState(false);
 
   const [username, setUsername] = useState('');
@@ -39,7 +37,10 @@ export default function AuthScreen() {
     if (selectedDate) setBirthday(selectedDate);
   };
 
-  const handleSignup = () => {
+  const getUserDataKey = (email: string) => `user_data_${email}`;
+  const CURRENT_USER_KEY = 'current_user_email';
+
+  const handleSignup = async () => {
     if (
       !username ||
       !firstName ||
@@ -48,7 +49,7 @@ export default function AuthScreen() {
       !password ||
       !birthday
     ) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Error', t('fillAllFields'));
       return;
     }
 
@@ -63,29 +64,62 @@ export default function AuthScreen() {
 
     // SERVER-FRIENDLY OUTPUT
     console.log('SIGNUP_REQUEST', signupPayload);
+
+    // Save user data to "database" (AsyncStorage)
+    try {
+      const userDataKey = getUserDataKey(email);
+      await AsyncStorage.setItem(userDataKey, JSON.stringify({
+        email,
+        name: firstName,
+        avatarUri: null,
+        username,
+        firstName,
+        lastName,
+        birthday: birthday.toISOString().split('T')[0],
+      }));
+    } catch (e) {
+      console.error('Failed to save user data:', e);
+    }
+
+    // Redirect to language selector after signup
+    router.push('/language-selector');
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', t('fillEmailPassword'));
+      return;
+    }
+
     const loginPayload = {
       email,
       password_hash: hashPassword(password),
     };
 
     console.log('LOGIN_REQUEST', loginPayload);
+
+    // Save current user email for session management
+    try {
+      await AsyncStorage.setItem(CURRENT_USER_KEY, email);
+    } catch (e) {
+      console.error('Failed to save current user:', e);
+    }
+
+    router.push('/quizzes');
   };
 
   return (
     <LinearGradient colors={['#8fecf8ff', '#0b707eff']} style={styles.container}>
-      <View style={styles.card}>
+      <BlurView intensity={90} tint="light" style={styles.card}>
         <Text style={styles.title}>
-          {isSignup ? 'Create Account' : 'Login'}
+          {isSignup ? t('createAccount') : t('login')}
         </Text>
 
         {isSignup && (
           <>
             <TextInput
               style={styles.input}
-              placeholder="Username"
+              placeholder={t('username')}
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
@@ -93,14 +127,14 @@ export default function AuthScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="First Name"
+              placeholder={t('firstName')}
               value={firstName}
               onChangeText={setFirstName}
             />
 
             <TextInput
               style={styles.input}
-              placeholder="Last Name"
+              placeholder={t('lastName')}
               value={lastName}
               onChangeText={setLastName}
             />
@@ -114,7 +148,7 @@ export default function AuthScreen() {
               <Text style={{ color: birthday ? '#000' : '#94a3b8' }}>
                 {birthday
                   ? birthday.toISOString().split('T')[0]
-                  : 'Birthday'}
+                  : t('birthday')}
               </Text>
             </TouchableOpacity>
 
@@ -132,7 +166,7 @@ export default function AuthScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('email')}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -141,7 +175,7 @@ export default function AuthScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Password"
+          placeholder={t('password')}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -162,18 +196,18 @@ export default function AuthScreen() {
           </Svg>
 
           <Text style={styles.buttonText}>
-            {isSignup ? 'Sign Up' : 'Login'}
+            {isSignup ? t('signUp') : t('login')}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => setIsSignup(!isSignup)}>
           <Text style={styles.switchText}>
             {isSignup
-              ? 'Already have an account? Login'
-              : "Don't have an account? Sign up"}
+              ? t('alreadyHaveAccount')
+              : t('noAccount')}
           </Text>
         </TouchableOpacity>
-      </View>
+      </BlurView>
     </LinearGradient>
   );
 }
@@ -185,9 +219,17 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)', // a bit more visible, still glassy
+    borderRadius: 24,
     padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 1,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 100,
   },
   title: {
   fontSize: 28,

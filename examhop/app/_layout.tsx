@@ -1,6 +1,11 @@
 import { Stack } from "expo-router";
+import { LanguageProvider } from "../contexts/LanguageContext";
 
 export default function RootLayout() {
-  return <Stack />;
+  return (
+    <LanguageProvider>
+      <Stack />
+    </LanguageProvider>
+  );
 }
  
